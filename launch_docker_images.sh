@@ -62,9 +62,9 @@ deploy_docker_stack() {
         if [ -f $compose_file ]; then
             docker-compose -f "$compose_file" up -d
             if [ $? -eq 0 ]; then
-                echo -e "\n$grn[✔]$nc - $grn Success deployment of $nc($compose_file)\n"
+                echo -e "\n$grn[ ✔ ]$nc - $grn Success deployment of $nc($compose_file)\n"
             else
-                echo -e "\n$red[✗]$nc - $red Error on deployment of $nc($compose_file)\n"
+                echo -e "\n$red[ ✗ ]$nc - $red Error on deployment of $nc($compose_file)\n"
             fi
         fi
     done
@@ -108,14 +108,17 @@ read -r -a docker_images <<<"$(cat "$images_list")"
 # | STEP 1 : CHECK IF IMAGES ARE LOADED |
 # +-------------------------------------+
 
+echo -e "\nStart Checking Images Loaded Locally"
+echo -e "--------------------------------------\n"
+
 for image in ${docker_images[@]}; do
 
     image_is_load=$(check_if_image_is_load "$image")
 
     if $image_is_load; then
-        echo -e "\n$grn[✔]$nc - $ylw$image$grn is load localy ! \n$nc"
+        echo -e "\n$grn[ ✔ ]$nc - $ylw$image$grn is load localy ! \n$nc"
     else
-        echo -e "\n$red[✗]$nc - $ylw$image$red is NOT load !$nc"
+        echo -e "\n$red[ ✗ ]$nc - $ylw$image$red is NOT load !$nc"
         echo -e "[warning] : pulling missing image ! it's may take time ...\n"
     fi
 done
@@ -124,6 +127,8 @@ done
 # | STEP 2 : DEPLOY ALL STACK (DOCKER-COMPOSE) |
 # +--------------------------------------------+
 
+echo -e "\nStarting Deployment of Stack"
+echo -e "-------------------------------\n"
 deploy_docker_stack "$docker_compose_dir"
 
 # +-----------------------------------------------+
@@ -141,29 +146,44 @@ if $digit_is_running; then
     echo -e "\n🆗 -$blu Container $DIGIT_CONTAINER is running ! $nc\n"
 
     digit_is_ok=true
+    errors_task=("Copying Digt Web App" "Extracting digit Web App" "Copying Certificates" "Changing Mode" "Deleting Index file")
 
     # COPY OF WEB APP INTO DIGIT
     docker cp "$web_app" "$DIGIT_CONTAINER":"$target_web_app_dir"
-    [[ $? -eq 0 ]] && echo -e "\n✅ -$grn Copy digit web app in container successfully ! $nc\n" || digit_is_ok=false
+    [[ $? -eq 0 ]] && echo -e "\n$grn[ ✔ ]$nc -$grn Copy digit web app in container successfully ! $nc\n" || (digit_is_ok=false && state=0)
 
     # EXTRACT WEB APP
     docker exec "$DIGIT_CONTAINER" unzip "$target_web_app_dir/$web_app" -d "$deploy_web_app_dir"
-    [[ $? -eq 0 ]] && echo -e "\n✅ -$grn Extract digit web app in container successfully ! $nc\n" || digit_is_ok=false
+    [[ $? -eq 0 ]] && echo -e "\n$grn[ ✔ ]$nc -$grn Extract digit web app in container successfully ! $nc\n" || (digit_is_ok=false && state=1)
 
     # COPY OF CERTIFICATES
     docker cp "$certificates_dir" "$DIGIT_CONTAINER":"$certifates_web_app_dir"
-    [[ $? -eq 0 ]] && echo -e "\n✅ -$grn Copy of certificates in container successfully ! $nc\n" || digit_is_ok=false
+    [[ $? -eq 0 ]] && echo -e "\n$grn[ ✔ ]$nc -$grn Copy of certificates in container successfully ! $nc\n" || (digit_is_ok=false && state=2)
 
     # CHANGE ACCESS DIR
     docker exec "$DIGIT_CONTAINER" chmod 777 "$certificates_web_app_dir"
-    [[ $? -eq 0 ]] && echo -e "\n✅ -$grn Changing access of $certificates_dir successfully ! $nc\n" || digit_is_ok=false
+    [[ $? -eq 0 ]] && echo -e "\n$grn[ ✔ ]$nc -$grn Changing access of $certificates_dir successfully ! $nc\n" || (digit_is_ok=false && state=3)
 
     # REMOVE HTML INDEX FILE FROM WEB_APP
     docker exec "$DIGIT_CONTAINER" rm "$deploy_web_app_dir"/index.html
-    [[ $? -eq 0 ]] && echo -e "\n✅ -$grn Removing index.html from '$deploy_web_app_dir' successfully ! $nc\n" || digit_is_ok=false
+    [[ $? -eq 0 ]] && echo -e "\n$grn[ ✔ ]$nc -$grn Removing index.html from '$deploy_web_app_dir' successfully ! $nc\n" || (digit_is_ok=false && state=4)
+
+    # CHECK IF DIGIT IS COMPLETE CONFIGURATE
+    if $digit_is_ok; then
+
+        #clear
+        echo -e "\n$grn                           @@@@@@@@@@@@@@@@@@@@@@@"
+        echo -e "$grn                                                 #"
+        echo -e "$grn#            DEPLOYMENT IS SUCCESSFUL            #"
+        echo -e "$grn#"
+        echo -e "$grn#@@@@@@@@@@@@@@@@@@@ $nc\n"
+    else
+        echo "\n\n$ylw[i] : Container $nc($DIGIT_CONTAINER)$ylw is running but not complete configurate..."
+        echo "$red ✗ $nc -$red Somthing wrong on $ylw${errors_task[$state]} !$nc\n\n"
+    fi
 
 else
-    echo -e "$red""Error :$nc $DIGIT_CONTAINER ""$red""is not running !$nc"
+    echo -e "\n\n$red""[ Error ] :$nc $DIGIT_CONTAINER ""$red""is not running !$nc\n"
 fi
 
 # +--------------------------------------------------------------+
@@ -172,18 +192,3 @@ fi
 
 #if [ -d "$docker_compose_dir" ]; then rm -r "$docker_compose_dir"; fi
 #if [ -d "$certificates_dir" ]; then rm -r "$certificates_dir"; fi
-
-# +------------------------------------------+
-# | STEP 6 : ECHO ALL IS DONE SUCCESSFULLY ! |
-# +------------------------------------------+
-
-if $digit_is_ok; then
-
-    #clear
-    echo -e "\n$grn                           @@@@@@@@@@@@@@@@@@@@@@@"
-    echo -e "$grn                                                 #"
-    echo -e "$grn#            DEPLOYMENT IS SUCCESSFUL            #"
-    echo -e "$grn#"
-    echo -e "$grn#@@@@@@@@@@@@@@@@@@@ $nc\n"
-
-fi
