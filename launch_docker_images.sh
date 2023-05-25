@@ -147,7 +147,7 @@ if $digit_is_running; then
     [[ $? -eq 0 ]] && echo -e "\n✅ -$grn Copy digit web app in container successfully ! $nc\n" || digit_is_ok=false
 
     # EXTRACT WEB APP
-    docker exec "$DIGIT_CONTAINER" tar -xf "$target_web_app_dir/$web_app" -C "$deploy_web_app_dir"
+    docker exec "$DIGIT_CONTAINER" unzip "$target_web_app_dir/$web_app" -d "$deploy_web_app_dir"
     [[ $? -eq 0 ]] && echo -e "\n✅ -$grn Extract digit web app in container successfully ! $nc\n" || digit_is_ok=false
 
     # COPY OF CERTIFICATES
